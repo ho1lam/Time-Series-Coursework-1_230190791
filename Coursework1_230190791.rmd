@@ -1,0 +1,177 @@
+---
+title: "MTH6139 Time Series" 
+subtitle: "Coursework 1 -- 230190791" 
+author: "Shiu Hoi Lam" 
+date: "16/3/2026" 
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab 
+    highlight: tango
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, echo=FALSE}
+# This code will display the QMUL logo at the top right of the page
+# Do not change this code
+htmltools::img(src = knitr::image_uri("images/QMlogo.png"),
+               alt = 'logo',
+               style = 'position:absolute; top:0; right:0; padding:10px; width:20%;')
+```
+
+# Section 1: Introduction
+
+```{r hongkong, echo=FALSE, fig.cap="Figure 1: Day and Night Views of Hong Kong (photographs by the author)", fig.show="hold", fig.align="center"}
+knitr::include_graphics(c("images/day.jpg", "images/night.jpg"))
+```
+
+
+## 1.1 Overview and Purposes
+
+Hong Kong has long been known as one of the most popular tourist destinations in Asia. However, its popularity appears to decline in recent years. This project analyses the monthly Hong Kong tourists arrival data and uses the Meta's Prophet model to explore future trends. The analysis focuses on identifying trends, seasonal patterns and any other noticeable features in the data.
+
+## 1.2 Key Features
+
+The dataset contains monthly observations from 2004 to 2025. So it gives a long-term (22 years) tourism growth as well as the significant disruption due to COVID-19 pandemic.
+
+## 1.3 Theoretical Framework and Assumptions
+
+Prophet model is used to forecast future values of the time series. It models the combination of trend, seasonality and holiday effects. Holiday effects refer to changes in the data that occur during special holidays or events. For example tourist number may increase during Christmas or Chinese New Year.
+
+## 1.4 Key Formulas
+
+The Prophet Model formula: $$
+y(t) = g(t) + s(t) + h(t) + \epsilon_t
+$$ where g(t) represents the trend, s(t) the seasonal component, h(t) holiday effects and $\epsilon_t$ represents random error.
+
+# Section 2: Data Description
+
+This section explores the time series characteristics of Hong Kong tourism arrivals from 2004 to 2025.
+
+## 2.1 Time Series Plot
+
+```{r}
+# Load Data
+data<-read.csv("data/hk_tourism.csv")
+# Make numbers easier to read by avoiding scientific notation
+options(scipen=999)
+# Create time series object
+ts_data<-ts(data$Total, start=c(2004,1), frequency=12)
+# Plot
+plot(ts_data,
+     main="Hong Kong Monthly Visitor Arrivals",
+     ylab="Number of Visitors",
+     xlab="Year",
+     col="black",
+     lwd=2)
+```
+
+Comment: This graph shows the time series in Hong Kong tourist arrivals from 2004 to 2025. This series shows an overall upward trend before 2019, indicating growth in tourism over time. There is a sharp structural break due to COVID-19 travel restrictions, tourists were unable to travel to Hong Kong. The series also shows that the seasonality presents that will be further discussed in the next section. It can also be seen that after pandemic period, the tourists number remains lower than that before 2019. This may suggest the decline in interest in Hong Kong as a tourist spot, possibly due to political factors or social conditions.
+
+## 2.2 Time Series Decomposition {#sec-2-2}
+
+```{r}
+# Make numbers easier to read by avoiding scientific notation
+options(scipen=999)
+# Time Series Decomposition
+decomp<-stl(ts_data, s.window="periodic")
+# Plot
+plot(decomp)
+```
+
+Comment: This graph shows the trend, seasonality and residuals of the time series. This decomposition shows a clear long-term trend and a strong seasonality patterns. However, both components are significantly disrupted during the pandemic period, indicating a temporary breakdown of normal tourism patterns. It can be observed that the tourist number is generally higher at the beginning and end of every year, the highest peak is at the summer holiday period, which is around August. The seasonal component is generally stable for all time, even there is a sharp decline around 2019. This is because pandemic represents a one-off shock, which mainly reflected in trend component rather than repeating patterns.
+
+## 2.3 Log Transformation
+
+```{r}
+# Stabilize variance
+log_visitors<-log(data$Total)
+# Convert to a time series object
+ts_log<-ts(log_visitors, start=c(2004,1), frequency=12)
+#Plot
+plot(ts_log,
+     main="Log of Hong Kong Monthly Visitor Arrivals",
+     ylab="Log(Number of Visitors)",
+     xlab="Year",
+     col="black",
+     lwd=2)
+```
+
+Comment: Since the number of tourists increases over time, the fluctuations in the series will grow larger. So the variance is not constant. Using logarithmic transformation can stabilize the variance. This can help the transformed series appears more stable. But it still cannot help remove the effect caused by COVID-19 as this is an external shock rather than a variance performance.
+
+# Section 3: Forecasting
+
+## 3.1 Prophet Model
+
+```{r prophet_model, message=FALSE, warning=FALSE}
+library(prophet)
+library(zoo)
+library(dplyr)
+# Convert Year and Month into Date format
+data$Date<-as.Date(as.yearmon(paste(data$Year, data$Month), "%Y %b"))
+# Prepare data with required format 
+hk_tourism_data<-data.frame(ds=data$Date, y=data$Total)
+# Fit the model to the full dataset
+prophet_full_model<-prophet(hk_tourism_data)
+# Generate dates for the future 36 months
+future<-make_future_dataframe(prophet_full_model, periods=36, freq="month")
+# Produce forecast values
+forecast<-predict(prophet_full_model, future)
+# Plot
+plot(prophet_full_model, forecast)
+```
+
+Comment: This graph shows the forecast values from 2004 to 2028. The forecast (blue line) shows that the tourists arrival increased steadily before 2019 while the overall trend after 2019 remains relatively flat or slightly declining, which shows a slow recovery in Hong Kong tourism.
+
+## 3.2 Prophet Component
+
+```{r prophet_components, message=FALSE, warning=FALSE}
+prophet_plot_components(prophet_full_model, forecast)
+```
+
+Comment: This graph shows the trend and seasonality from 2004 to 2028. For the trend graph, Prophet interprets the COVID-19 pandemic as a long-term decline rather than one-off shock. So from the trend graph, starting from 2016, there is a decreasing trend. This may not be entirely realistic. The trend decline slightly from around 2016, possibly reflects the changes in tourism patterns due to the evolving China–Hong Kong relations. This highlights a limitation of the Prophet model in handling one-off external shocks.
+
+## 3.3 Pre-COVID Prophet Model
+
+```{r precovid_model, message=FALSE, warning=FALSE}
+# Filter dataset to keep only before Jan 2020
+data_pre_covid<-data[data$Date<as.Date("2020-01-01"), ]
+# Prepare data with required forma
+d_pre<-data.frame(
+    ds=data_pre_covid$Date,
+    y=data_pre_covid$Total)
+# Fit the model to the filtered dataset
+prophet_precovid_model<-prophet(d_pre)
+# Generate dates for the future 36 months
+future_pre<-make_future_dataframe(prophet_precovid_model, periods=36, freq="month")
+# Produce forecast values
+forecast_pre<-predict(prophet_precovid_model, future_pre)
+# Plot
+plot(prophet_precovid_model, forecast_pre)
+```
+
+Comment: This graph shows the forecast values from 2004 to 2028 (excluding 2020 to 2025 data). The forecast (blue line) shows that this fitted model follows observed data (black dots) closely before 2020. Since the model does not account for the pandemic shock so it continues the steady upward trend and fails to predict the sharp decline in 2020. This can conclude that unexpected external events cannot be captured by the model if they are not included in the data.
+
+## 3.4 Pre-COVID Prophet Components
+
+```{r precovid_components, message=FALSE, warning=FALSE}
+prophet_plot_components(prophet_precovid_model, forecast_pre)
+```
+
+Comment: This graph shows the trend and seasonality from 2004 to 2028. The model based on pre-COVID data produces a smoother and consistent upward trend. The yearly component shows regular seasonal patterns, with peaks repeating each year. Tourist arrivals tend to be higher during certain periods such as mid-year and year-end, while lower levels are observed in other months. This is similar to the analysis in Section [2.2](#sec-2-2). So seasonality is always clear and regular. Overall, the components appear stable when no unexpected shocks are present. 
+
+## 3.5 Models Comparison
+
+The two models produce extremely different forecasts. The full-sample model suggests a long-term decline, while the pre-COVID model predicts a continued growth. This shows the importance of handling structural breaks in time series analysis.
+
+# Section 4: Conclusion
+
+In conclusion, this project highlighted the importance of structural breaks in time series forecast (3 years). For the tourism in Hong Kong, the COVID-19 pandemic caused a significant decline, which strongly affected the model results. This analysis tells the tourist arrivals bring a clear upward trend and strong seasonality patterns before 2019. However, the pandemic should be treated as an unexpected external shock that cannot be captured by those forecasting models, like Prophet. By comparing these two models, the full-sample model suggests a long-term decline, while the pre-COVID model forecasts a continuous steady growth. This shows that the forecasts can be varied depending on whether any shocks are included. So understanding these limitations can help making reliable forecasts and tourism decisions for Hong Kong Tourism Board.
+
+# References
+
+Data Source: - Hong Kong Census and Statistics Department
+(<https://www.censtatd.gov.hk>)
