@@ -1,4 +1,4 @@
-# Time Series Forecasting Project
+# Time Series Forecasting Project (https://ho1lam.github.io/Time-Series-Coursework-1_230190791/Coursework1_230190791.html)
 This project analyses Hong Kong tourist monthly arrivals data using R and Meta's Prophet forecasting model.
 
 ## Description
@@ -14,3 +14,4 @@ It also investigates the significant impact of COVID-19 as a structural break in
 ## Results
 The analysis shows strong seasonality and long-term growth before 2019. 
 The COVID-19 pandemic introduces a structual break, significantly affecting forecasts.
+
